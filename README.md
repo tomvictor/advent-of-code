@@ -1,2 +1,6 @@
-# adventofcode2023
-Advent of Code 2023
+# Advent of Code 2023
+
+
+```shell
+cargo run -p day_01
+```
