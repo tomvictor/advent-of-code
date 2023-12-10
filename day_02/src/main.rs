@@ -37,6 +37,7 @@ struct Game {
     input: String,
     primitive_super_set: Vec<Vec<Primitive>>,
     valid: bool,
+    product_minimum: u32,
 }
 
 
@@ -47,6 +48,7 @@ impl Game {
             id: 0,
             primitive_super_set: vec![],
             valid: false,
+            product_minimum: 0,
         }
     }
 
@@ -117,6 +119,36 @@ impl Game {
         self.valid = true;
     }
 
+    pub fn evaluate_part_two(&mut self) {
+        let mut minimum_red = 1;
+        let mut minimum_green = 1;
+        let mut minimum_blue = 1;
+
+        for primitive_set in &self.primitive_super_set {
+            for primitive in primitive_set {
+                match primitive.kind {
+                    RED => {
+                        if primitive.value > minimum_red {
+                            minimum_red = primitive.value
+                        }
+                    }
+                    GREEN => {
+                        if primitive.value > minimum_green {
+                            minimum_green = primitive.value
+                        }
+                    }
+                    BLUE => {
+                        if primitive.value > minimum_blue {
+                            minimum_blue = primitive.value
+                        }
+                    }
+                }
+            }
+        }
+
+        self.product_minimum = minimum_red * minimum_green * minimum_blue;
+    }
+
     pub fn is_valid_str(&self) -> String {
         if self.valid {
             return String::from("valid");
@@ -134,6 +166,7 @@ fn main() {
     for game_string in file_contents.split("\n") {
         let mut game = Game::new(String::from(game_string));
         game.validate();
+        game.evaluate_part_two();
         games.push(game);
     }
 
@@ -143,4 +176,10 @@ fn main() {
         .sum();
 
     println!("sum_of_possible_game_ids: {}", sum);
+
+    let sum_o_minimum_cubes: u32 = games.iter()
+        .map(|instance| instance.product_minimum)
+        .sum();
+
+    println!("sum_o_minimum_cubes: {}", sum_o_minimum_cubes);
 }
