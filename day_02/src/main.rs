@@ -1,26 +1,28 @@
+use std::fs;
+use crate::Color::{BLUE, GREEN, RED};
+
 enum Color {
     RED,
-    BLUE,
     GREEN,
+    BLUE,
 }
 
 impl Color {
     pub fn new(value: &str) -> Result<Color, ()> {
         let colour = match value {
-            "red" => { Ok(Color::RED) }
-            "green" => { Ok(Color::GREEN) }
-            "blue" => { Ok(Color::BLUE) }
+            "red" => { Ok(RED) }
+            "green" => { Ok(GREEN) }
+            "blue" => { Ok(BLUE) }
             _ => { Err(()) }
         };
         return colour;
     }
-    pub fn count(&self) -> u32 {
-        let total_count = match self {
-            Color::RED => { 12 }
-            Color::BLUE => { 13 }
-            Color::GREEN => { 14 }
-        };
-        total_count
+    pub fn max(&self) -> u32 {
+        match self {
+            RED => { 12 }
+            GREEN => { 13 }
+            BLUE => { 14 }
+        }
     }
 }
 
@@ -29,14 +31,22 @@ struct Primitive {
     value: u32,
 }
 
+
 struct Game {
+    id: u32,
     input: String,
+    primitive_super_set: Vec<Vec<Primitive>>,
+    valid: bool,
 }
 
+
 impl Game {
-    pub fn new(input: String) -> Game {
+    pub fn new(input: String) -> Self {
         Game {
-            input
+            input,
+            id: 0,
+            primitive_super_set: vec![],
+            valid: false,
         }
     }
 
@@ -53,33 +63,84 @@ impl Game {
         }
     }
 
-    fn get_colour_sets(self) {
+    fn parse_game_string(&mut self) {
         let input_slice: Vec<&str> = self.input.split(":").collect();
-        let colour_split: Vec<&str> = input_slice[1].split(";").collect();
+        let game_slice: Vec<&str> = input_slice[0].split(" ").collect();
+        let colour_slice: Vec<&str> = input_slice[1].split(";").collect();
 
-        let mut primitive_set: Vec<Primitive> = vec![];
+        let game_id: u32 = game_slice[1].parse().unwrap();
+        self.id = game_id;
 
-        for game_set in colour_split {
+        let mut primitive_super_set: Vec<Vec<Primitive>> = vec![];
+
+        for game_set in colour_slice {
             let atomic_colours: Vec<&str> = game_set.split(",").collect();
+            let mut primitive_set: Vec<Primitive> = vec![];
             for primitive in atomic_colours {
-                let primitive_instance = self.get_primitive(&primitive);
-                primitive_set.push(primitive_instance);
+                primitive_set.push(self.get_primitive(&primitive));
             }
+            primitive_super_set.push(primitive_set);
         }
+
+        self.primitive_super_set = primitive_super_set;
     }
 
-    pub fn validate(self) -> bool {
+    pub fn validate(&mut self) {
         println!("{}", self.input);
-        self.get_colour_sets();
-        true
+
+        self.parse_game_string();
+
+        for primitive_superset in &self.primitive_super_set {
+            for primitive in primitive_superset {
+                match primitive.kind {
+                    RED => {
+                        if primitive.value > RED.max() {
+                            self.valid = false;
+                            return;
+                        }
+                    }
+                    GREEN => {
+                        if primitive.value > GREEN.max() {
+                            self.valid = false;
+                            return;
+                        }
+                    }
+                    BLUE => {
+                        if primitive.value > BLUE.max() {
+                            self.valid = false;
+                            return;
+                        }
+                    }
+                };
+            }
+        };
+        self.valid = true;
+    }
+
+    pub fn is_valid_str(&self) -> String {
+        if self.valid {
+            return String::from("valid");
+        }
+        String::from("invalid")
     }
 }
 
 fn main() {
     println!("<Day 02>");
 
-    let input_string = "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green";
+    let file_contents = fs::read_to_string("data/002_data.txt").expect("ok");
+    let mut games: Vec<Game> = vec![];
 
-    let game = Game::new(String::from(input_string));
-    let result = game.validate();
+    for game_string in file_contents.split("\n") {
+        let mut game = Game::new(String::from(game_string));
+        game.validate();
+        games.push(game);
+    }
+
+    let sum: u32 = games.iter()
+        .filter(|instance| instance.valid)
+        .map(|instance| instance.id)
+        .sum();
+
+    println!("sum_of_possible_game_ids: {}", sum);
 }
