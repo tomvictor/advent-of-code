@@ -172,7 +172,7 @@ fn main() {
 
     let sum: u32 = games.iter()
         .filter(|instance| instance.valid)
-        .map(|instance| instance.id)
+        .map(|instance |instance.id)
         .sum();
 
     println!("sum_of_possible_game_ids: {}", sum);
