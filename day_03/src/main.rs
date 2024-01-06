@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fs;
 use crate::CellType::*;
 use crate::Validity::*;
@@ -76,15 +75,21 @@ impl Cell {
         };
     }
 
-    pub fn log(&self) {
-        println!("{} x {} ({})", self.m, self.n, self.kind.fmt())
+    pub fn new_valid_index_cell(m: usize, n: usize, number: u32) -> Self {
+        Self {
+            m,
+            n,
+            kind: NUMBER,
+            number,
+            symbol: String::from(""),
+            valid: INVALID,
+        }
     }
 }
 
 #[derive(Clone)]
 struct Engine {
     raw_matrix: Vec<Vec<Cell>>,
-    linear_matrix: Vec<Cell>,
     valid_numbers: Vec<Cell>,
     m: usize,
     n: usize,
@@ -93,12 +98,10 @@ struct Engine {
 impl Engine {
     pub fn new(matrix: Vec<Vec<Cell>>) -> Self {
         let raw_matrix: Vec<Vec<Cell>> = matrix.clone();
-        let linear_matrix: Vec<Cell> = matrix.into_iter().flatten().collect();
         let m: usize = raw_matrix.iter().count() - 1;
         let n: usize = raw_matrix[0].iter().count() - 1;
         Self {
             raw_matrix,
-            linear_matrix,
             valid_numbers: vec![],
             m,
             n,
@@ -201,11 +204,12 @@ impl Engine {
         ]
     }
 
-    fn scan(&self, x: &usize, y: &usize) -> Validity {
-        let m: usize = x.clone();
-        let n: usize = y.clone();
+    fn evaluate(&self, cell: &Cell) -> Validity {
+        if cell.kind != NUMBER {
+            return INVALID;
+        }
 
-        let neighbours: Vec<Option<Cell>> = self.get_neighbours(&m, &n);
+        let neighbours: Vec<Option<Cell>> = self.get_neighbours(&cell.m, &cell.n);
 
         for neighbour in neighbours {
             match neighbour {
@@ -220,23 +224,57 @@ impl Engine {
         INVALID
     }
 
-    fn evaluate(&self, cell: &Cell) -> Validity {
-        if cell.kind == NUMBER {
-            if self.scan(&cell.m, &cell.n) == VALID {
-                return VALID;
+    pub fn process_raw(&mut self) {
+        let _matrix = self.raw_matrix.clone();
+        for (_, raw) in _matrix.into_iter().enumerate() {
+            for (_, cell) in raw.into_iter().enumerate() {
+                if self.evaluate(&cell) == VALID {
+                    self.push_valid_number(
+                        Cell::new_valid_index_cell(
+                            cell.m,
+                            self.parse_first_number_col(&cell),
+                            cell.number,
+                        )
+                    );
+                }
             }
         }
-        INVALID
     }
 
 
     pub fn valid_count(&self) -> usize {
         self.valid_numbers.iter().count()
     }
-    pub fn parse_number(&self, cell: &Cell) -> usize {
+    pub fn parse_first_number_col(&self, cell: &Cell) -> usize {
+        let mut valid_number_index = cell.n;
+
+        for col in (0..cell.n + 1).rev() {
+            let temp: Cell = self.raw_matrix[cell.m][col].clone();
+            if temp.kind == NUMBER {
+                valid_number_index = col;
+            } else {
+                break;
+            }
+        }
+        valid_number_index
+    }
+
+    pub fn push_valid_number(&mut self, cell: Cell) {
+        let filtered_set = self.valid_numbers.iter()
+            .filter(|val| val.m == cell.m)
+            .filter(|val| val.n == cell.n);
+
+        let filtered_set_count = filtered_set.count();
+        if filtered_set_count > 0 {
+            return;
+        }
+        self.valid_numbers.push(cell.clone());
+    }
+
+    pub fn parse_full_number(&self, cell: Cell) -> u32 {
         let mut num: Vec<u32> = vec![];
 
-        for col in (0..cell.n).rev() {
+        for col in cell.n..self.n + 1 {
             let temp: Cell = self.raw_matrix[cell.m][col].clone();
             if temp.kind == NUMBER {
                 num.push(temp.number);
@@ -244,28 +282,11 @@ impl Engine {
                 break;
             }
         }
-
-        num.reverse();
-        num.push(cell.number);
-
-        for col in (cell.n..self.n) {
-            if col == cell.n {
-                continue;
-            }
-            let temp: Cell = self.raw_matrix[cell.m][col].clone();
-            if temp.kind == NUMBER {
-                num.push(temp.number);
-            } else {
-                break;
-            }
-        }
-
 
         let number: String = num.iter().map(|&x| { x.to_string() }).collect();
 
         match number.parse() {
             Ok(num) => {
-                println!("number : {}", num);
                 return num;
             }
             _ => {}
@@ -273,55 +294,22 @@ impl Engine {
         0
     }
 
-    pub fn process(&mut self) {
-        let linear_matrix = self.linear_matrix.clone();
-        for cell in &linear_matrix {
-            let result = self.evaluate(&cell);
-            if result == VALID {
-                let mut _cell: Cell = cell.clone();
-                _cell.valid = result;
-                self.valid_numbers.push(_cell);
-                self.raw_matrix[cell.m][cell.n].valid = VALID;
-            }
-        }
-    }
-
-    pub fn process_raw(&mut self) {
-        let _matrix = self.raw_matrix.clone();
-        let mut valid_numbers_final: Vec<u32> = vec![];
-        for (i, raw) in _matrix.into_iter().enumerate() {
-            let mut valid_numbers_set: HashSet<u32> = HashSet::new();
-            for (j, cell) in raw.into_iter().enumerate() {
-                let result = self.evaluate(&cell);
-                if result == VALID {
-                    let mut _cell: Cell = cell.clone();
-                    let number = self.parse_number(&_cell);
-                    valid_numbers_set.insert(number as u32);
-                    // extra
-                    _cell.valid = result;
-                    self.valid_numbers.push(_cell);
-                    self.raw_matrix[cell.m][cell.n].valid = VALID;
-                }
-            }
-            let valid_number_raw_count = valid_numbers_set.clone().into_iter().count();
-            println!("valid number raw count: {}", valid_number_raw_count);
-            for num in &valid_numbers_set {
-                valid_numbers_final.push(*num);
-            }
+    pub fn calculate_sum(&self) -> u32 {
+        println!("Total number of valid numbers : {}", self.valid_count());
+        let mut array_of_numbers = vec![];
+        for index_cell in &self.valid_numbers {
+            let number = self.parse_full_number(index_cell.clone());
+            println!("Valid number: {}", number);
+            array_of_numbers.push(number);
         }
 
-        for valid_number in &valid_numbers_final {
-            println!("Valid number: {}", valid_number)
-        }
-
-        let final_sum: u32 = valid_numbers_final.iter().sum();
-        println!("Grand sum : {}", final_sum);
+        array_of_numbers.iter().sum()
     }
 }
 
 fn main() {
     println!("<Day 02>");
-    let file_contents = fs::read_to_string("data/003_data.txt").expect("ok");
+    let file_contents = fs::read_to_string("data/003_data.txt").expect("Failed to read data");
 
     let mut matrix: Vec<Vec<Cell>> = vec![];
 
@@ -337,6 +325,9 @@ fn main() {
 
     let mut engine: Engine = Engine::new(matrix);
 
-    println!("completed matrix formation!");
     engine.process_raw();
+
+    let grand_sum = engine.calculate_sum();
+
+    println!("Grand sum (method 2) : {}", grand_sum);
 }
